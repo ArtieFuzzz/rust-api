@@ -20,7 +20,7 @@ fn encode(text: &str) -> String {
 #[get("/decode?<data>")]
 fn decode(data: &str) -> String {
     str::from_utf8(&d64(data.to_string()).unwrap())
-        .unwrap()
+        .unwrap_or(&String::from(""))
         .to_string()
 }
 
