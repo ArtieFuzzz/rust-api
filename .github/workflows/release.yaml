@@ -31,3 +31,4 @@ jobs:
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
           MINIFY: "yes"
+          TOOLCHAIN_VERSION: nightly-x86_64-pc-windows-msvc
