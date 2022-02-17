@@ -20,8 +20,6 @@ jobs:
             archive: tar.gz
           - target: x86_64-apple-darwin
             archive: zip
-          - target: wasm32-wasi
-            archive: zip tar.gz
     steps:
       - uses: actions/checkout@v2
       - name: Compile and Release
@@ -31,4 +29,4 @@ jobs:
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
           MINIFY: "yes"
-          TOOLCHAIN_VERSION: nightly-x86_64-pc-windows-msvc
+          TOOLCHAIN_VERSION: nightly
