@@ -8,6 +8,7 @@ use base64::{decode as d64, encode as e64};
 use rocket::http::Status;
 use rocket::response::status;
 use rocket::{Config, Request};
+use std::num::ParseIntError;
 use std::str;
 
 #[catch(404)]
@@ -26,7 +27,7 @@ fn home() -> &'static str {
 }
 
 #[get("/encode?<text>")]
-fn encode(text: &str) -> status::Custom<String> {
+fn encode64(text: &str) -> status::Custom<String> {
     let string = text.to_string();
 
     if string.is_empty() {
@@ -37,7 +38,7 @@ fn encode(text: &str) -> status::Custom<String> {
 }
 
 #[get("/decode?<data>")]
-fn decode(data: &str) -> status::Custom<String> {
+fn decode64(data: &str) -> status::Custom<String> {
     if data.to_string().is_empty() {
         return status::Custom(Status::BadRequest, "data parameter required".to_string());
     }
@@ -53,6 +54,39 @@ fn decode(data: &str) -> status::Custom<String> {
     return status::Custom(Status::Ok, decoded.unwrap().to_string());
 }
 
+#[get("/encode?<text>")]
+fn encode_binary(text: &str) -> status::Custom<String> {
+    if text.to_string().is_empty() {
+        return status::Custom(Status::BadRequest, "text parameter is required".to_string());
+    }
+
+    let mut binary = "".to_string();
+    let string = text.to_string();
+
+    for char in string.clone().into_bytes() {
+        binary += &format!("0{:b} ", char)
+    }
+
+    return status::Custom(Status::Ok, format!("{}", binary));
+}
+
+fn binary_decode(s: &str) -> Result<Vec<u8>, ParseIntError> {
+    return (0..s.len())
+        .step_by(9)
+        .map(|i| u8::from_str_radix(&s[i..i + 8], 2))
+        .collect();
+}
+
+#[get("/decode?<data>")]
+fn decode_binary(data: &str) -> status::Custom<String> {
+    if data.to_string().is_empty() {
+        return status::Custom(Status::BadRequest, "data parameter is required".to_string());
+    }
+
+    let decoded = binary_decode(data).unwrap();
+
+    return status::Custom(Status::Ok, String::from_utf8(decoded).unwrap());
+}
 #[launch]
 fn rocket() -> _ {
     let config = Config {
@@ -64,5 +98,7 @@ fn rocket() -> _ {
     rocket::build()
         .configure(config)
         .register("/", catchers![not_found, backend_flipped])
-        .mount("/", routes![encode, decode, home])
+        .mount("/base64/", routes![encode64, decode64])
+        .mount("/binary/", routes![encode_binary, decode_binary])
+        .mount("/", routes![home])
 }
