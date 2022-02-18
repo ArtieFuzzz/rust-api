@@ -5,11 +5,18 @@ extern crate rocket;
 extern crate base64;
 
 use base64::{decode as d64, encode as e64};
+use jsonwebtoken::{encode as jwt_encode, Algorithm, EncodingKey, Header};
 use rocket::http::Status;
 use rocket::response::status;
 use rocket::{Config, Request};
+use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
 use std::str;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+    exp: usize,
+}
 
 #[catch(404)]
 fn not_found(req: &Request) -> String {
@@ -24,6 +31,21 @@ fn backend_flipped(_req: &Request) -> String {
 #[get("/")]
 fn home() -> &'static str {
     "Hello User!"
+}
+
+#[get("/token")]
+fn token() -> String {
+    let claim: Claims = Claims { exp: 0 };
+    let mut header = Header::new(Algorithm::HS512);
+    header.kid = Some("word".to_owned());
+    let token_created = jwt_encode(
+        &header,
+        &claim,
+        &EncodingKey::from_secret("secret".as_ref()),
+    );
+    let token = token_created.unwrap();
+
+    return token;
 }
 
 #[get("/encode?<text>")]
@@ -100,5 +122,5 @@ fn rocket() -> _ {
         .register("/", catchers![not_found, backend_flipped])
         .mount("/base64/", routes![encode64, decode64])
         .mount("/binary/", routes![encode_binary, decode_binary])
-        .mount("/", routes![home])
+        .mount("/", routes![home, token])
 }
