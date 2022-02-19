@@ -5,17 +5,23 @@ extern crate rocket;
 extern crate base64;
 
 use base64::{decode as d64, encode as e64};
-use jsonwebtoken::{encode as jwt_encode, Algorithm, EncodingKey, Header};
+use hmac::{Hmac, Mac};
+use jwt::{SignWithKey, VerifyWithKey};
 use rocket::http::Status;
+use rocket::request::{self, FromRequest, Outcome};
 use rocket::response::status;
 use rocket::{Config, Request};
-use serde::{Deserialize, Serialize};
+use sha2::Sha256;
+use std::collections::BTreeMap;
 use std::num::ParseIntError;
 use std::str;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Claims {
-    exp: usize,
+struct Token(String);
+
+#[derive(Debug)]
+enum ApiTokenError {
+    Missing,
+    Invalid,
 }
 
 #[catch(404)]
@@ -33,19 +39,43 @@ fn home() -> &'static str {
     "Hello User!"
 }
 
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for Token {
+    type Error = ApiTokenError;
+
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
+        let header = request.headers().get_one("Authorization").unwrap_or("");
+
+        if header.is_empty() {
+            return Outcome::Failure((Status::BadRequest, ApiTokenError::Missing));
+        }
+
+        let key: Hmac<Sha256> = Hmac::new_from_slice(b"secret").unwrap();
+
+        let claims: BTreeMap<String, String> =
+            header.verify_with_key(&key).unwrap_or(BTreeMap::new());
+
+        if claims.is_empty() {
+            return Outcome::Failure((Status::Unauthorized, ApiTokenError::Invalid));
+        }
+
+        return Outcome::Success(Token(header.to_string()));
+    }
+}
+
 #[get("/token")]
 fn token() -> String {
-    let claim: Claims = Claims { exp: 0 };
-    let mut header = Header::new(Algorithm::HS512);
-    header.kid = Some("word".to_owned());
-    let token_created = jwt_encode(
-        &header,
-        &claim,
-        &EncodingKey::from_secret("secret".as_ref()),
-    );
-    let token = token_created.unwrap();
+    let key: Hmac<Sha256> = Hmac::new_from_slice(b"secret").unwrap();
+    let mut claims = BTreeMap::new();
+    claims.insert("sub", "someone");
+    let token_string = claims.sign_with_key(&key).unwrap();
 
-    return token;
+    return token_string;
+}
+
+#[get("/token/header")]
+fn token_header(_token: Token) -> String {
+    String::from("Hello!")
 }
 
 #[get("/encode?<text>")]
@@ -122,5 +152,5 @@ fn rocket() -> _ {
         .register("/", catchers![not_found, backend_flipped])
         .mount("/base64/", routes![encode64, decode64])
         .mount("/binary/", routes![encode_binary, decode_binary])
-        .mount("/", routes![home, token])
+        .mount("/", routes![home, token, token_header])
 }
