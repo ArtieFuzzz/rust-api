@@ -4,72 +4,19 @@
 extern crate rocket;
 extern crate base64;
 
-use hmac::{Hmac, Mac};
-use jwt::{SignWithKey, VerifyWithKey};
-use rocket::http::Status;
-use rocket::request::{self, FromRequest, Outcome};
-use rocket::{Config, Request};
-use sha2::Sha256;
-use std::collections::BTreeMap;
-use std::str;
+use rocket::Config;
 
 mod catchers;
 mod fairings;
+mod guards;
 mod routes;
 
 use fairings::powered_by;
-use routes::{base64 as base_64, binary};
-
-struct Token(String);
-
-#[derive(Debug)]
-enum ApiTokenError {
-    Missing,
-    Invalid,
-}
+use routes::{base64 as base_64, binary, token};
 
 #[get("/")]
 fn home() -> &'static str {
     "Hello User!"
-}
-
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for Token {
-    type Error = ApiTokenError;
-
-    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        let header = request.headers().get_one("Authorization").unwrap_or("");
-
-        if header.is_empty() {
-            return Outcome::Failure((Status::BadRequest, ApiTokenError::Missing));
-        }
-
-        let key: Hmac<Sha256> = Hmac::new_from_slice(b"secret").unwrap();
-
-        let claims: BTreeMap<String, String> =
-            header.verify_with_key(&key).unwrap_or(BTreeMap::new());
-
-        if claims.is_empty() {
-            return Outcome::Failure((Status::Unauthorized, ApiTokenError::Invalid));
-        }
-
-        return Outcome::Success(Token(header.to_string()));
-    }
-}
-
-#[get("/token")]
-fn token() -> String {
-    let key: Hmac<Sha256> = Hmac::new_from_slice(b"secret").unwrap();
-    let mut claims = BTreeMap::new();
-    claims.insert("sub", "someone");
-    let token_string = claims.sign_with_key(&key).unwrap();
-
-    return token_string;
-}
-
-#[get("/token/header")]
-fn token_header(_token: Token) -> String {
-    String::from("Hello!")
 }
 
 #[launch]
@@ -100,5 +47,5 @@ fn rocket() -> _ {
             "/binary/",
             routes![binary::decode_binary, binary::encode_binary],
         )
-        .mount("/", routes![home, token, token_header])
+        .mount("/", routes![home, token::home, token::header_test])
 }
