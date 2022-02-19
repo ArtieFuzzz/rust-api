@@ -16,22 +16,14 @@ use std::collections::BTreeMap;
 use std::num::ParseIntError;
 use std::str;
 
+mod catchers;
+
 struct Token(String);
 
 #[derive(Debug)]
 enum ApiTokenError {
     Missing,
     Invalid,
-}
-
-#[catch(404)]
-fn not_found(req: &Request) -> String {
-    format!("{} Is not a valid Route", req.uri())
-}
-
-#[catch(500)]
-fn backend_flipped(_req: &Request) -> String {
-    format!("{}", "Something went wrong in the Backend!")
 }
 
 #[get("/")]
@@ -149,7 +141,10 @@ fn rocket() -> _ {
 
     rocket::build()
         .configure(config)
-        .register("/", catchers![not_found, backend_flipped])
+        .register(
+            "/",
+            catchers![catchers::not_found, catchers::backend_flipped],
+        )
         .mount("/base64/", routes![encode64, decode64])
         .mount("/binary/", routes![encode_binary, decode_binary])
         .mount("/", routes![home, token, token_header])
