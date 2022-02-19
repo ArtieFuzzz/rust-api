@@ -6,23 +6,21 @@ extern crate base64;
 
 use hmac::{Hmac, Mac};
 use jwt::{SignWithKey, VerifyWithKey};
-use rocket::fairing::{Fairing, Info, Kind};
-use rocket::http::{Header, Status};
+use rocket::http::Status;
 use rocket::request::{self, FromRequest, Outcome};
-use rocket::{Config, Request, Response};
+use rocket::{Config, Request};
 use sha2::Sha256;
 use std::collections::BTreeMap;
 use std::str;
 
 mod catchers;
+mod fairings;
 mod routes;
 
+use fairings::powered_by;
 use routes::{base64 as base_64, binary};
 
 struct Token(String);
-
-#[derive(Default, Clone)]
-struct PoweredBy(String);
 
 #[derive(Debug)]
 enum ApiTokenError {
@@ -33,21 +31,6 @@ enum ApiTokenError {
 #[get("/")]
 fn home() -> &'static str {
     "Hello User!"
-}
-
-#[rocket::async_trait]
-impl Fairing for PoweredBy {
-    // This is a request and response fairing named "GET/POST Counter".
-    fn info(&self) -> Info {
-        Info {
-            name: "GET/POST Header Rewrite",
-            kind: Kind::Response,
-        }
-    }
-
-    async fn on_response<'r>(&self, _request: &'r Request<'_>, res: &mut Response<'r>) {
-        res.set_header(Header::new("X-Powered-By", "ArtieFuzzz, <3 Cutie"));
-    }
 }
 
 #[rocket::async_trait]
@@ -99,7 +82,7 @@ fn rocket() -> _ {
 
     rocket::build()
         .configure(config)
-        .attach(PoweredBy::default())
+        .attach(powered_by::PoweredBy::default())
         // Register the Error catchers
         .register(
             "/",
